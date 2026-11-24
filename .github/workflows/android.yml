@@ -23,12 +23,16 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Instalar SDK 35
+      - name: Preparar Android SDK
         run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager não encontrado"
+            exit 1
+          fi
+          yes | "$SDKMANAGER" --licenses || true
+          "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0"
 
       - name: Extrair projeto
         run: unzip -q CatRootBooster-Hybrid.zip -d .
@@ -41,3 +45,4 @@ jobs:
         with:
           name: CatRootBooster-APK
           path: CatRootBooster/app/build/outputs/apk/debug/app-debug.apk
+
