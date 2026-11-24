@@ -58,7 +58,7 @@ jobs:
             exit 1
           fi
           echo "Extraindo: $ZIP"
-          unzip -q "$ZIP" -d .
+          unzip -oq "$ZIP" -d .
           test -d CatRootBooster
 
       - name: Build APK
