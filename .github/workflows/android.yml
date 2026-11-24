@@ -46,7 +46,7 @@ jobs:
       - name: Extract project
         run: |
           ZIP=""
-          for candidate in CatRootBooster-Hybrid-FULL.zip CatRootBooster-Hybrid-Updated.zip CatRootBooster-Hybrid.zip; do
+          for candidate in CatRootBooster-Hybrid-FULL-COLORS-FIXED.zip CatRootBooster-Hybrid-FULL.zip CatRootBooster-Hybrid-Updated.zip CatRootBooster-Hybrid.zip; do
             if [ -f "$candidate" ]; then
               ZIP="$candidate"
               break
