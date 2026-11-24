@@ -33,23 +33,41 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # 3. Configurar Gradle 8.9
+      # 3. Configurar Gradle
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      # 4. Instalar Android SDK
+      # 4. Extrair ZIPs do projeto
+      - name: Extract Android project ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          shopt -s nullglob
+          ZIP_FILES=( ./*.zip )
+
+          if [ ${#ZIP_FILES[@]} -eq 0 ]; then
+            echo "Nenhum ZIP na raiz. Continuando..."
+          else
+            for ZIP_FILE in "${ZIP_FILES[@]}"; do
+              echo "Extraindo: $ZIP_FILE"
+              unzip -o "$ZIP_FILE" -d .
+            done
+          fi
+
+      # 5. Instalar Android SDK
       - name: Install Android SDK
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" \
             -type f -name sdkmanager 2>/dev/null | head -n 1)"
 
           if [ -z "$SDKMANAGER" ]; then
-            echo "::error::Android SDK sdkmanager não encontrado."
+            echo "::error::sdkmanager não encontrado."
             exit 1
           fi
 
@@ -60,7 +78,7 @@ jobs:
             "platforms;android-35" \
             "build-tools;35.0.0"
 
-      # 5. Encontrar automaticamente a pasta Android
+      # 6. Localizar projeto Android
       - name: Locate Android project
         shell: bash
         run: |
@@ -68,8 +86,8 @@ jobs:
 
           PROJECT_DIR=""
 
-          while IFS= read -r FILE; do
-            DIR="$(dirname "$FILE")"
+          while IFS= read -r SETTINGS_FILE; do
+            DIR="$(dirname "$SETTINGS_FILE")"
 
             if {
               [ -f "$DIR/app/build.gradle.kts" ] ||
@@ -80,56 +98,94 @@ jobs:
             fi
           done < <(
             find . \
-              \( -path '*/.git' -o -path '*/.gradle' -o -path '*/build' \) -prune \
+              -type d \( -name .git -o -name .gradle -o -name build \) -prune \
               -o -type f \( \
-                -name 'settings.gradle' -o \
-                -name 'settings.gradle.kts' \
+                -name settings.gradle \
+                -o -name settings.gradle.kts \
               \) -print | sort
           )
 
           if [ -z "$PROJECT_DIR" ]; then
             echo "::error::Projeto Android não encontrado."
-            echo "Verifique settings.gradle(.kts), app/build.gradle e AndroidManifest.xml."
-            find . -maxdepth 5 -type f | sort
+            echo "Estrutura encontrada:"
+            find . -maxdepth 6 -type f | sort
             exit 1
           fi
 
+          PROJECT_DIR="$(realpath "$PROJECT_DIR")"
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-          echo "Projeto encontrado em: $PROJECT_DIR"
+          echo "Projeto encontrado em:"
+          echo "$PROJECT_DIR"
+
           ls -la "$PROJECT_DIR"
 
-      # 6. Validar estrutura e ferramentas
+      # 7. Validar toolchain e estrutura
       - name: Validate toolchain and project
         shell: bash
         run: |
           set -euo pipefail
 
+          echo "Java:"
           java -version
+
+          echo "Gradle:"
           gradle --version
+
+          echo "Validando arquivos..."
 
           test -f "$PROJECT_DIR/settings.gradle.kts" || \
             test -f "$PROJECT_DIR/settings.gradle"
+
+          test -f "$PROJECT_DIR/build.gradle.kts" || \
+            test -f "$PROJECT_DIR/build.gradle"
 
           test -f "$PROJECT_DIR/app/build.gradle.kts" || \
             test -f "$PROJECT_DIR/app/build.gradle"
 
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
 
-          echo "Validação concluída com sucesso."
+          echo "Toolchain e projeto validados!"
 
-      # 7. Compilar APK
+      # 8. Compilar APK Debug
       - name: Build debug APK
         shell: bash
         run: |
           set -euo pipefail
 
-          gradle -p "$PROJECT_DIR" \
-            :app:assembleDebug \
-            --no-daemon \
-            --stacktrace
+          echo "Compilando projeto em: $PROJECT_DIR"
 
-      # 8. Disponibilizar APK para download
+          gradle \
+            -p "$PROJECT_DIR" \
+            assembleDebug \
+            --stacktrace \
+            --no-daemon
+
+      # 9. Verificar APK gerado
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK_DIR="$PROJECT_DIR/app/build/outputs/apk/debug"
+
+          if [ ! -d "$APK_DIR" ]; then
+            echo "::error::Pasta do APK não encontrada."
+            exit 1
+          fi
+
+          APK_COUNT="$(find "$APK_DIR" -maxdepth 1 -type f -name '*.apk' | wc -l)"
+
+          if [ "$APK_COUNT" -eq 0 ]; then
+            echo "::error::Nenhum APK foi gerado."
+            exit 1
+          fi
+
+          echo "APK(s) encontrado(s):"
+          find "$APK_DIR" -maxdepth 1 -type f -name '*.apk' -print
+
+      # 10. Disponibilizar APK para download
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
