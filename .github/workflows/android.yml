@@ -35,7 +35,7 @@ jobs:
           "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0"
 
       - name: Extrair projeto
-        run: unzip -q CatRootBooster-Hybrid.zip -d .
+        run: unzip -q CatRootBooster-Hybrid-Updated.zip -d .
 
       - name: Compilar APK
         run: gradle -p CatRootBooster --no-daemon assembleDebug
