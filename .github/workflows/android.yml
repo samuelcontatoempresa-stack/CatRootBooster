@@ -1,48 +1,52 @@
-
-name: Build CatRoot Booster
+name: CatRoot Booster Android Build
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '*.zip'
+      - '.github/workflows/android.yml'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Baixar projeto
+      - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Configurar Java 17
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Configurar Gradle
+      - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-
-      - name: Preparar Android SDK
+      - name: Install Android SDK packages
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)
-          if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager não encontrado"
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Find and extract project ZIP
+        run: |
+          if [ -f CatRootBooster-Hybrid-FULL.zip ]; then
+            ZIP_FILE=CatRootBooster-Hybrid-FULL.zip
+          elif [ -f CatRootBooster-Hybrid-Updated.zip ]; then
+            ZIP_FILE=CatRootBooster-Hybrid-Updated.zip
+          elif [ -f CatRootBooster-Hybrid.zip ]; then
+            ZIP_FILE=CatRootBooster-Hybrid.zip
+          else
+            echo 'Nenhum ZIP CatRootBooster-Hybrid foi encontrado na raiz.'
+            ls -la
             exit 1
           fi
-          yes | "$SDKMANAGER" --licenses || true
-          "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0"
-
-      - name: Extrair projeto
-        run: unzip -q CatRootBooster-Hybrid-Updated.zip -d .
-
-      - name: Compilar APK
+          echo "Extraindo: $ZIP_FILE"
+          unzip -q -o "$ZIP_FILE" -d .
+          test -f CatRootBooster/app/build.gradle.kts
+      - name: Build debug APK
         run: gradle -p CatRootBooster --no-daemon assembleDebug
-
-      - name: Disponibilizar APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: CatRootBooster-APK
+          name: CatRootBooster-debug-apk
           path: CatRootBooster/app/build/outputs/apk/debug/app-debug.apk
-
+          if-no-files-found: error
